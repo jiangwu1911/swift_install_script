@@ -9,6 +9,9 @@ function exec_cmd() {
     remote_ip=$1
     cmd=$2
     output=$(ssh $remote_ip "$cmd" 2>&1)
+    echo -e "host:    $remote_ip
+command: $2
+output:  $output\n" >> $log_file
     echo $output
 }
 
@@ -29,11 +32,12 @@ function exec_script() {
     echo $output
 }
 
+
 function create_device_on_a_storage_node() {
     node=$1 
     device=$2
 
-    echo -e "Preparing storage device on $1...   \c"
+    echo -e "    Creating storage device on $1... \c"
     script="fdisk /dev/$device <<EOF
 n
 p
@@ -52,14 +56,16 @@ mount -a"
 }
 
 function create_device() {
-    for node in $1; do 
+    echo -e "\nCreate storage device on storage nodes:"
+    for node in $STORAGE_NODE; do 
         create_device_on_a_storage_node $node $STORAGE_DEVICE
     done 
 }
 
+
 function install_packages_on_proxy_node() {
     node=$1
-    echo -e "    Installing $node...   \c"
+    echo -e "    Installing packages on $node... \c"
 
     pkgs="openstack-swift openstack-swift-proxy"
     script="yum install -y http://rdo.fedorapeople.org/rdo-release.rpm
@@ -70,7 +76,7 @@ yum install -y $pkgs"
 
 function install_packages_on_storage_node() {
     node=$1
-    echo -e "    Installing $node...   \c"
+    echo -e "    Installing packages on $node... \c"
 
     pkgs="openstack-swift-account openstack-swift-object openstack-swift-container"
     script="yum install -y http://rdo.fedorapeople.org/rdo-release.rpm
@@ -79,14 +85,26 @@ yum install -y $pkgs"
     echo "done."
 }
 
+function install_packages() {
+    echo -e "\nInstall packages on proxy node:"
+    
+    for node in $PROXY_NODE; do
+        install_packages_on_proxy_node $node
+    done
+    
+    echo -e "\nInstall packages on storage node:"
+    for node in $STORAGE_NODE; do
+        install_packages_on_storage_node $node
+    done
+}
 
 function check_connection() {
     fail_count=0
     echo -e "\nCheck connection to each node:"
     for node in $PROXY_NODE $STORAGE_NODE; do
         echo -e "    To $node... \c"
-        output=$(exec_cmd $node "echo \"hello\"")
-        if [ "$output" = "hello" ]; then
+        output=$(exec_cmd $node "ping -c 1 baidu.com | grep '1 received' | wc -l")
+        if [ "$output" = "1" ]; then
             echo "success."
         else 
             echo "failed."
@@ -95,23 +113,36 @@ function check_connection() {
     done
 
     if [ $fail_count -gt 0 ]; then
-        echo "Fail to connect some nodes, please check again."
+        echo -e "Fail to connect some nodes, fix the problem and try again.\n"
         exit 1
     fi
 }
 
 
+function config_swift_conf() {
+    echo 
+}
+
+function memcached() {
+    echo
+}
+
+function config_rsync() {
+    echo
+}
+
+function config() {
+    echo
+}
+
+
 # Main Program
+dt=$(date '+%Y_%m_%d_%H_%M_%S')
+log_file="swift_install_$dt.log"
+echo -e "\nSave log information in file $log_file."
+
 check_connection
-#create_device "$STORAGE_NODE" 
-
-echo -e "\nInstall packages on proxy node:"
-for node in $PROXY_NODE; do
-    install_packages_on_proxy_node $node
-done
-
-echo -e "\nInstall packages on storage node:"
-for node in $STORAGE_NODE; do
-    install_packages_on_storage_node $node
-done
+create_device
+install_packages
+config
 echo
