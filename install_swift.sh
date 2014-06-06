@@ -1,8 +1,9 @@
 #!/bin/sh
 
-PROXY_NODE="swift01"
-STORAGE_NODE="swift02 swift03"
+PROXY_NODE="192.168.1.151"
+STORAGE_NODE="192.168.1.152 192.168.1.153"
 STORAGE_DEVICE="sdb"
+PROXY_LOCAL_NET_IP="192.168.1.151"
 
 
 function exec_cmd() {
@@ -43,6 +44,22 @@ result: $output\n" >> $log_file
     echo $output
 }
 
+function enable_password_less_ssh() {
+    for node in $PROXY_NODE $STORAGE_NODE; do
+        ssh-copy-id $node
+    done
+}
+
+
+function disable_firewall() {
+    echo -e "\nDisable firewall... \c"
+    for node in $PROXY_NODE $STORAGE_NODE; do
+        script="service iptables stop
+chkconfig iptables off"
+        output=$(exec_script $node "$script")
+    done
+    echo "done."
+}
 
 function install_ntp() {
     echo -e "\nConfig ntp on each node:"
@@ -124,6 +141,7 @@ function install_packages() {
     done
 }
 
+
 function check_connection() {
     fail_count=0
     echo -e "\nCheck network connection on each node:"
@@ -146,47 +164,211 @@ function check_connection() {
 
 
 function config_swift_conf() {
-    echo -e "\nConfigure /etc/swift/swift.conf on each node... \c"
+    echo -e "\nConfigure /etc/swift/swift.conf on each node:"
 
     tmpfile=$(mktemp)
     cat >$tmpfile << EOF
 [swift-hash]
 # random unique strings that can never change (DO NOT LOSE)
-swift_hash_path_prefix = `od -t x8 -N 8 -A n </dev/random`
-swift_hash_path_suffix = `od -t x8 -N 8 -A n </dev/random`
+swift_hash_path_prefix = `od -t x8 -N 8 -A n </dev/urandom`
+swift_hash_path_suffix = `od -t x8 -N 8 -A n </dev/urandom`
 EOF
 
     for node in $PROXY_NODE $STORAGE_NODE; do
-        copy_file $tmpfile $node "/etc/swift/swift.conf"
+        echo -e "    Copying files to $node... \c"
+        $(copy_file $tmpfile $node "/etc/swift/swift.conf")
+        echo "done."
     done
-        
     rm -f $tmpfile
+}
+
+function config_proxy_conf() {
+    echo -e "\nConfig /etc/swift/proxy-server.conf on $PROXY_NODE... \c"
+    script="cat >/etc/swift/proxy-server.conf <<EOF
+[DEFAULT]
+cert_file = /etc/swift/cert.crt
+key_file = /etc/swift/cert.key
+bind_port = 8080
+workers = 8
+user = swift
+
+[pipeline:main]
+pipeline = healthcheck proxy-logging cache tempauth proxy-logging proxy-server
+
+[app:proxy-server]
+use = egg:swift#proxy
+allow_account_management = true
+account_autocreate = true
+
+[filter:proxy-logging]
+use = egg:swift#proxy_logging
+
+[filter:tempauth]
+use = egg:swift#tempauth
+user_system_root = testpass .admin http://$PROXY_LOCAL_NET_IP:8080/v1/AUTH_system
+
+[filter:healthcheck]
+use = egg:swift#healthcheck
+
+[filter:cache]
+use = egg:swift#memcache
+memcache_servers = $PROXY_LOCAL_NET_IP:11211
+EOF"
+    output=$(exec_script $PROXY_NODE "$script")
     echo "done."
 }
 
 function config_memcached() {
-    echo
+    echo -e "\nConfigure memcache on $PROXY_NODE... \c"
+    script="yum install -y memcached
+service memcached start
+chkconfig memcached on"
+    output=$(exec_script $PROXY_NODE "$script")
+    echo "done."
 }
 
 function config_rsync() {
-    echo
+    echo -e "\nConfigure rsync on each node:"
+    for node in $STORAGE_NODE; do
+        echo -e "    Installing rsync on $node... \c"
+        script="yum install -y xinetd rsync
+
+sed -i -s 's#disable.*=.*yes#disable = no#' /etc/xinetd.d/rsync
+
+cat > /etc/rsyncd.conf <<EOF
+uid = swift
+gid = swift
+log file = /var/log/rsyncd.log
+pid file = /var/run/rsyncd.pid
+address = 0.0.0.0
+# should be changed to private IP in production env
+
+[account]
+max connections = 2
+path = /srv/node/
+read only = false
+lock file = /var/lock/account.lock
+
+[container]
+max connections = 2
+path = /srv/node/
+read only = false
+lock file = /var/lock/container.lock
+
+[object]
+max connections = 2
+path = /srv/node/
+read only = false
+lock file = /var/lock/object.lock
+EOF
+
+chkconfig xinetd on
+service xinetd restart
+"
+        output=$(exec_script $node "$script")
+        echo "done"
+    done
 }
 
 function config() {
     config_swift_conf
+    config_proxy_conf
     config_memcached
     config_rsync
 }
 
 
-# Main Program
-dt=$(date '+%Y_%m_%d_%H_%M_%S')
-log_file="swift_install_$dt.log"
-echo -e "\nSave log information in file $log_file."
+function create_rings() {
+    echo -e "\nCreate rings... \c"
+    
+    script="cd /etc/swift
+swift-ring-builder account.builder create 18 2 1
+swift-ring-builder container.builder create 18 2 1
+swift-ring-builder object.builder create 18 2 1"
 
-#check_connection
+    for node in $STORAGE_NODE; do
+        script="$script
+swift-ring-builder object.builder add z1-$node:6000/${STORAGE_DEVICE}1 100
+swift-ring-builder container.builder add z1-$node:6001/${STORAGE_DEVICE}1 100
+swift-ring-builder account.builder add z1-$node:6002/${STORAGE_DEVICE}1 100"
+    done
+
+    script="$script
+swift-ring-builder account.builder rebalance
+swift-ring-builder container.builder rebalance
+swift-ring-builder object.builder rebalance"
+
+    output=$(exec_script $PROXY_NODE "$script")
+
+    # Copy the generated .gz file to each storage node
+    mkdir -p /tmp/swift_install
+    scp $PROXY_NODE:/etc/swift/*gz /tmp/swift_install >/dev/null
+    for node in $STORAGE_NODE; do
+        scp /tmp/swift_install/*gz $node:/etc/swift >/dev/null
+    done
+
+    echo "done."
+
+}
+
+
+function start_service_on_proxy_node() {
+    echo -e "    Start service on $PROXY_NODE... \c"
+        script="chown -R swift:swift /etc/swift
+cd /etc/init.d
+for service in \$(ls openstack-swift*); do
+    chkconfig \$service on
+    service \$service start
+done"
+    output=$(exec_script $PROXY_NODE "$script")
+    echo "done"
+}
+
+function start_service_on_storage_node() {
+    for node in $STORAGE_NODE; do
+        echo -e "    Start service on $node... \c"
+        script="chown -R swift:swift /etc/swift
+sed -i -s 's#bind_ip.*#/bind_ip = 0.0.0.0#' /etc/swift/account-server.conf
+sed -i -s 's#bind_ip.*#/bind_ip = 0.0.0.0#' /etc/swift/container-server.conf
+sed -i -s 's#bind_ip.*#/bind_ip = 0.0.0.0#' /etc/swift/object-server.conf
+
+cd /etc/init.d
+for service in \$(ls openstack-swift*); do
+    chkconfig \$service on
+    service \$service start
+done"
+        output=$(exec_script $node "$script")
+        echo "done"
+    done
+}
+
+function start_service() {
+    echo -e "\nStart service on each node:"
+    start_service_on_proxy_node
+    start_service_on_storage_node
+}
+
+
+function init_log() {
+    dt=$(date '+%Y_%m_%d_%H_%M_%S')
+    log_file="swift_install_$dt.log"
+    echo -e "\nSave log information in file $log_file."
+}
+
+
+# Main Program
+init_log
+
+enable_password_less_ssh
+check_connection
+
+disable_firewall
 install_ntp
-#create_device
-#install_packages
+create_device
+install_packages
+
 config
+create_rings
+start_service
+
 echo

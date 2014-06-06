@@ -1,0 +1,33 @@
+host:    192.168.1.151
+command: sh /tmp/tmp.zqwUKX9wpE
+output:  Starting openstack-swift-object-expirer: [  OK  ]
+Starting openstack-swift-proxy: [  OK  ]
+
+host:    192.168.1.151
+command: rm -f /tmp/tmp.zqwUKX9wpE
+output:  
+
+host:    192.168.1.152
+command: sh /tmp/tmp.HzxnlUA7QJ
+output:  Starting openstack-swift-account-replicator: [  OK  ]
+Starting openstack-swift-container-replicator: [  OK  ]
+Starting openstack-swift-container-updater: [  OK  ]
+Starting openstack-swift-object-replicator: [  OK  ]
+Starting openstack-swift-object-updater: [  OK  ]
+
+host:    192.168.1.152
+command: rm -f /tmp/tmp.HzxnlUA7QJ
+output:  
+
+host:    192.168.1.153
+command: sh /tmp/tmp.1gaB8Mx9Hh
+output:  Starting openstack-swift-account-replicator: [  OK  ]
+Starting openstack-swift-container-replicator: [  OK  ]
+Starting openstack-swift-container-updater: [  OK  ]
+Starting openstack-swift-object-replicator: [  OK  ]
+Starting openstack-swift-object-updater: [  OK  ]
+
+host:    192.168.1.153
+command: rm -f /tmp/tmp.1gaB8Mx9Hh
+output:  
+
