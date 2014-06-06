@@ -123,7 +123,8 @@ function install_packages_on_storage_node() {
 
     pkgs="openstack-swift-account openstack-swift-object openstack-swift-container"
     script="yum install -y http://rdo.fedorapeople.org/rdo-release.rpm
-yum install -y $pkgs"
+yum install -y $pkgs
+chown -R swift:swift /srv/node"
     output=$(exec_script $node "$script")
     echo "done."
 }
