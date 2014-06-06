@@ -32,6 +32,32 @@ function exec_script() {
     echo $output
 }
 
+function copy_file() {
+    file=$1
+    remote_ip=$2
+    remote_path=$3
+    
+    output=$(scp $file root@$remote_ip:$remote_path)
+    echo -e "Copy file $file to $remote_ip:$remote_path
+result: $output\n" >> $log_file
+    echo $output
+}
+
+
+function install_ntp() {
+    echo -e "\nConfig ntp on each node:"
+
+    for node in $PROXY_NODE $STORAGE_NODE; do
+        echo -e "    Installing ntp on $node... \c"
+        script="yum install -y ntp
+ntpdate 0.cn.pool.ntp.org
+sed -i -s 's#^.*ntpdate.*#*/30 * * * * root /usr/sbin/ntpdate 0.cn.pool.ntp.org#' /etc/crontab
+chkconfig crond on
+service crond restart"
+        output=$(exec_script $node "$script")
+        echo "done."
+    done
+}
 
 function create_device_on_a_storage_node() {
     node=$1 
@@ -100,7 +126,7 @@ function install_packages() {
 
 function check_connection() {
     fail_count=0
-    echo -e "\nCheck connection to each node:"
+    echo -e "\nCheck network connection on each node:"
     for node in $PROXY_NODE $STORAGE_NODE; do
         echo -e "    To $node... \c"
         output=$(exec_cmd $node "ping -c 1 baidu.com | grep '1 received' | wc -l")
@@ -120,10 +146,25 @@ function check_connection() {
 
 
 function config_swift_conf() {
-    echo 
+    echo -e "\nConfigure /etc/swift/swift.conf on each node... \c"
+
+    tmpfile=$(mktemp)
+    cat >$tmpfile << EOF
+[swift-hash]
+# random unique strings that can never change (DO NOT LOSE)
+swift_hash_path_prefix = `od -t x8 -N 8 -A n </dev/random`
+swift_hash_path_suffix = `od -t x8 -N 8 -A n </dev/random`
+EOF
+
+    for node in $PROXY_NODE $STORAGE_NODE; do
+        copy_file $tmpfile $node "/etc/swift/swift.conf"
+    done
+        
+    rm -f $tmpfile
+    echo "done."
 }
 
-function memcached() {
+function config_memcached() {
     echo
 }
 
@@ -132,7 +173,9 @@ function config_rsync() {
 }
 
 function config() {
-    echo
+    config_swift_conf
+    config_memcached
+    config_rsync
 }
 
 
@@ -141,8 +184,9 @@ dt=$(date '+%Y_%m_%d_%H_%M_%S')
 log_file="swift_install_$dt.log"
 echo -e "\nSave log information in file $log_file."
 
-check_connection
-create_device
-install_packages
+#check_connection
+install_ntp
+#create_device
+#install_packages
 config
 echo

@@ -1,0 +1,54 @@
+host:    swift01
+command: sh /tmp/tmp.ERJa6lNw76
+output:  Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+Setting up Install Process
+Package ntp-4.2.6p5-1.el6.centos.x86_64 already installed and latest version
+Nothing to do
+ 6 Jun 12:43:55 ntpdate[1993]: adjust time server 202.112.29.82 offset 0.001563 sec
+Stopping crond: [  OK  ]
+Starting crond: [  OK  ]
+
+host:    swift01
+command: rm -f /tmp/tmp.ERJa6lNw76
+output:  
+
+host:    swift02
+command: sh /tmp/tmp.WBfKimlRC5
+output:  Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+Setting up Install Process
+Package ntp-4.2.6p5-1.el6.centos.x86_64 already installed and latest version
+Nothing to do
+ 6 Jun 12:44:01 ntpdate[2360]: adjust time server 202.112.29.82 offset 0.001377 sec
+Stopping crond: [  OK  ]
+Starting crond: [  OK  ]
+
+host:    swift02
+command: rm -f /tmp/tmp.WBfKimlRC5
+output:  
+
+host:    swift03
+command: sh /tmp/tmp.sUXzPTn2tU
+output:  Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+Setting up Install Process
+Package ntp-4.2.6p5-1.el6.centos.x86_64 already installed and latest version
+Nothing to do
+ 6 Jun 12:44:07 ntpdate[2114]: adjust time server 202.112.29.82 offset -0.000152 sec
+Stopping crond: [  OK  ]
+Starting crond: [  OK  ]
+
+host:    swift03
+command: rm -f /tmp/tmp.sUXzPTn2tU
+output:  
+
+Copy file /tmp/tmp.XdzMZhqJ6J to swift01:/etc/swift/swift.conf
+result: 
+
+Copy file /tmp/tmp.XdzMZhqJ6J to swift02:/etc/swift/swift.conf
+result: 
+
+Copy file /tmp/tmp.XdzMZhqJ6J to swift03:/etc/swift/swift.conf
+result: 
+
