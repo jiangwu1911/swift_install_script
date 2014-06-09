@@ -214,8 +214,8 @@ function config_keystone() {
 }
 
 function install_keystone() {
-    #install_mysql_packages $PROXY_NODE
-    #install_keystone_packages $PROXY_NODE
+    install_mysql_packages $PROXY_NODE
+    install_keystone_packages $PROXY_NODE
     config_keystone $PROXY_NODE
 }
 
@@ -225,7 +225,7 @@ function check_connection() {
     echo -e "\nCheck network connection on each node:"
     for node in $ALL_NODES; do
         echo -e "    Checking $node... \c"
-        output=$(exec_cmd $node "ping -c 1 baidu.com | grep '1 received' | wc -l")
+        output=$(exec_cmd $node "ping -c 1 yum.puppetlabs.com | grep '1 received' | wc -l")
         if [ "$output" = "1" ]; then
             echo "success."
         else 
