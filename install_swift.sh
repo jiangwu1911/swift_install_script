@@ -1,9 +1,11 @@
 #!/bin/sh
 
 PROXY_NODE="192.168.1.151"
-STORAGE_NODE="192.168.1.152 192.168.1.153"
+STORAGE_NODES="192.168.1.152 192.168.1.153"
+ALL_NODES="$PROXY_NODE $STORAGE_NODES"
 STORAGE_DEVICE="sdb"
 PROXY_LOCAL_NET_IP="192.168.1.151"
+MYSQL_PASSWORD="password"
 
 
 function exec_cmd() {
@@ -45,7 +47,7 @@ result: $output\n" >> $log_file
 }
 
 function enable_password_less_ssh() {
-    for node in $PROXY_NODE $STORAGE_NODE; do
+    for node in $ALL_NODES; do
         ssh-copy-id $node
     done
 }
@@ -53,7 +55,7 @@ function enable_password_less_ssh() {
 
 function disable_selinux() {
     echo -e "\nDisable SELinux... \c"
-    for node in $PROXY_NODE $STORAGE_NODE; do
+    for node in $ALL_NODES; do
         script="sed -i -e 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
 setenforce Permissive"
         output=$(exec_script $node "$script")
@@ -63,7 +65,7 @@ setenforce Permissive"
 
 function disable_firewall() {
     echo -e "\nDisable firewall... \c"
-    for node in $PROXY_NODE $STORAGE_NODE; do
+    for node in $ALL_NODES; do
         script="service iptables stop
 chkconfig iptables off"
         output=$(exec_script $node "$script")
@@ -74,7 +76,7 @@ chkconfig iptables off"
 function install_ntp() {
     echo -e "\nConfig ntp on each node:"
 
-    for node in $PROXY_NODE $STORAGE_NODE; do
+    for node in $ALL_NODES; do
         echo -e "    Installing ntp on $node... \c"
         script="yum install -y ntp
 ntpdate 0.cn.pool.ntp.org
@@ -112,13 +114,13 @@ mount -a"
 
 function create_device() {
     echo -e "\nCreate storage device on storage nodes:"
-    for node in $STORAGE_NODE; do 
+    for node in $STORAGE_NODES; do 
         create_device_on_a_storage_node $node $STORAGE_DEVICE
     done 
 }
 
 
-function install_packages_on_proxy_node() {
+function install_swift_on_proxy_node() {
     node=$1
     echo -e "    Installing packages on $node... \c"
 
@@ -129,7 +131,7 @@ yum install -y $pkgs"
     echo "done."
 }
 
-function install_packages_on_storage_node() {
+function install_swift_on_storage_node() {
     node=$1
     echo -e "    Installing packages on $node... \c"
 
@@ -141,24 +143,87 @@ chown -R swift:swift /srv/node"
     echo "done."
 }
 
-function install_packages() {
-    echo -e "\nInstall packages on proxy node:"
+function install_swift() {
+    echo -e "\nInstalling packages on proxy node:"
     
-    for node in $PROXY_NODE; do
-        install_packages_on_proxy_node $node
-    done
+    install_swift_on_proxy_node $PROXY_NODE
     
-    echo -e "\nInstall packages on storage node:"
-    for node in $STORAGE_NODE; do
-        install_packages_on_storage_node $node
+    echo -e "\nInstalling packages on storage node:"
+    for node in $STORAGE_NODES; do
+        install_swift_on_storage_node $node
     done
+}
+
+
+function install_mysql_packages() {
+    node=$1
+    echo -e "\nInstalling MySQL server on $node... \c"
+    script="yum install -y mysql-server
+service mysqld start
+chkconfig mysqld on
+
+mysql_secure_installation <<EOF
+
+Y
+$MYSQL_PASSWORD
+$MYSQL_PASSWORD
+Y
+Y
+Y
+EOF
+
+mysql -u root -p$MYSQL_PASSWORD <<EOF
+CREATE DATABASE keystone;  
+GRANT ALL ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'keystone';  
+commit;  
+EOF
+
+service mysqld restart
+"
+    output=$(exec_script $node "$script")
+    echo "done."
+}
+
+function install_keystone_packages() {
+    node=$1
+    echo -e "\n Installing keystone on $node... \c"
+    script="yum install -y openstack-keystone
+sed -i -s 's#.*connection.*=.*mysql.*#connection = mysql://keystone:keystone@127.0.0.1/keystone#' /etc/keystone/keystone.conf
+sed -i -s 's/#driver=keystone.identity.backends.sql.Identity/driver=keystone.identity.backends.sql.Identity/' /etc/keystone/keystone.conf
+sed -i -s 's/#driver=keystone.catalog.backends.sql.Catalog/driver=keystone.catalog.backends.sql.Catalog/' /etc/keystone/keystone.conf
+sed -i -s 's/#admin_token=ADMIN/admin_token=ADMIN/' /etc/keystone/keystone.conf
+sed -i -s 's/#admin_port=35357/admin_port=35357/' /etc/keystone/keystone.conf
+sed -i -s 's/.*token_format.*/token_format=UUID/' /etc/keystone/keystone.conf
+
+service openstack-keystone restart
+chkconfig openstack-keystone on
+
+keystone-manage db_sync"
+    output=$(exec_script $node "$script")
+    echo "done"
+}
+
+function config_keystone() {
+    node=$1
+    echo -e "\nConfig keystone on $node... \c"
+    scp config_keystone.sh root@$node:/tmp >/dev/null 2>&1 
+    output=$(exec_cmd $node "sh /tmp/config_keystone.sh $PROXY_NODE 2>&1")
+    
+    exec_cmd $node "rm -f  /tmp/config_keystone.sh"
+    echo $output 
+}
+
+function install_keystone() {
+    #install_mysql_packages $PROXY_NODE
+    #install_keystone_packages $PROXY_NODE
+    config_keystone $PROXY_NODE
 }
 
 
 function check_connection() {
     fail_count=0
     echo -e "\nCheck network connection on each node:"
-    for node in $PROXY_NODE $STORAGE_NODE; do
+    for node in $ALL_NODES; do
         echo -e "    To $node... \c"
         output=$(exec_cmd $node "ping -c 1 baidu.com | grep '1 received' | wc -l")
         if [ "$output" = "1" ]; then
@@ -187,7 +252,7 @@ swift_hash_path_prefix = `od -t x8 -N 8 -A n </dev/urandom`
 swift_hash_path_suffix = `od -t x8 -N 8 -A n </dev/urandom`
 EOF
 
-    for node in $PROXY_NODE $STORAGE_NODE; do
+    for node in $ALL_NODES; do
         echo -e "    Copying files to $node... \c"
         $(copy_file $tmpfile $node "/etc/swift/swift.conf")
         echo "done."
@@ -199,33 +264,42 @@ function config_proxy_conf() {
     echo -e "\nConfig /etc/swift/proxy-server.conf on $PROXY_NODE... \c"
     script="cat >/etc/swift/proxy-server.conf <<EOF
 [DEFAULT]
-cert_file = /etc/swift/cert.crt
-key_file = /etc/swift/cert.key
 bind_port = 8080
 workers = 8
 user = swift
 
 [pipeline:main]
-pipeline = healthcheck proxy-logging cache tempauth proxy-logging proxy-server
+pipeline = healthcheck cache authtoken keystoneauth proxy-server
 
 [app:proxy-server]
 use = egg:swift#proxy
 allow_account_management = true
 account_autocreate = true
 
-[filter:proxy-logging]
-use = egg:swift#proxy_logging
-
-[filter:tempauth]
-use = egg:swift#tempauth
-user_system_root = testpass .admin http://$PROXY_LOCAL_NET_IP:8080/v1/AUTH_system
+[filter:keystoneauth]
+use = egg:swift#keystoneauth
+operator_roles = Member,admin,swiftoperator
 
 [filter:healthcheck]
 use = egg:swift#healthcheck
 
+[filter:keystoneauth]
+use = egg:swift#keystoneauth
+operator_roles = Member,admin,swiftoperator
+
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+delay_auth_decision = true
+auth_protocol = http
+auth_host = controller
+auth_port = 35357
+admin_tenant_name = service
+admin_user = swift
+admin_password = admin
+
 [filter:cache]
 use = egg:swift#memcache
-memcache_servers = $PROXY_LOCAL_NET_IP:11211
+memcache_servers = ${PROXY_NODE}:11211
 EOF"
     output=$(exec_script $PROXY_NODE "$script")
     echo "done."
@@ -242,7 +316,7 @@ chkconfig memcached on"
 
 function config_rsync() {
     echo -e "\nConfigure rsync on each node:"
-    for node in $STORAGE_NODE; do
+    for node in $STORAGE_NODES; do
         echo -e "    Installing rsync on $node... \c"
         script="yum install -y xinetd rsync
 
@@ -299,7 +373,7 @@ swift-ring-builder account.builder create 18 2 1
 swift-ring-builder container.builder create 18 2 1
 swift-ring-builder object.builder create 18 2 1"
 
-    for node in $STORAGE_NODE; do
+    for node in $STORAGE_NODES; do
         script="$script
 swift-ring-builder object.builder add z1-$node:6000/${STORAGE_DEVICE}1 100
 swift-ring-builder container.builder add z1-$node:6001/${STORAGE_DEVICE}1 100
@@ -316,7 +390,7 @@ swift-ring-builder object.builder rebalance"
     # Copy the generated .gz file to each storage node
     mkdir -p /tmp/swift_install
     scp $PROXY_NODE:/etc/swift/*gz /tmp/swift_install >/dev/null
-    for node in $STORAGE_NODE; do
+    for node in $STORAGE_NODES; do
         scp /tmp/swift_install/*gz $node:/etc/swift >/dev/null
     done
 
@@ -338,7 +412,7 @@ done"
 }
 
 function start_service_on_storage_node() {
-    for node in $STORAGE_NODE; do
+    for node in $STORAGE_NODES; do
         echo -e "    Start service on $node... \c"
         script="chown -R swift:swift /etc/swift
 sed -i -s 's#bind_ip.*#/bind_ip = 0.0.0.0#' /etc/swift/account-server.conf
@@ -372,17 +446,23 @@ function init_log() {
 # Main Program
 init_log
 
-enable_password_less_ssh
-check_connection
+# Check environment
+#enable_password_less_ssh
+#check_connection
 
-disable_selinux
-disable_firewall
-install_ntp
-create_device
-install_packages
+# Prepare to install
+#disable_selinux
+#disable_firewall
+#install_ntp
+#create_device
 
-config
-create_rings
-start_service
+# Install and config
+install_keystone
+#install_swift
+#config
+
+# Start service
+#create_rings
+#start_service
 
 echo
