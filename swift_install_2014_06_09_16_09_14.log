@@ -1,0 +1,53 @@
+host:    192.168.1.151
+command: sh /tmp/tmp.WtTeenHIvr
+output:  Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+http://yum.theforeman.org/releases/1.5/el6/x86_64/repodata/repomd.xml: [Errno 14] PYCURL ERROR 22 - "The requested URL returned error: 404 Not Found"
+Trying other mirror.
+http://yum.theforeman.org/plugins/1.5/el6/x86_64/repodata/repomd.xml: [Errno 14] PYCURL ERROR 22 - "The requested URL returned error: 404 Not Found"
+Trying other mirror.
+http://repos.fedorapeople.org/repos/openstack/openstack-icehouse/epel-6/repodata/repomd.xml: [Errno 14] PYCURL ERROR 22 - "The requested URL returned error: 404 Not Found"
+Trying other mirror.
+http://yum.puppetlabs.com/el/6/dependencies/x86_64/repodata/repomd.xml: [Errno 14] PYCURL ERROR 6 - "Couldn't resolve host 'yum.puppetlabs.com'"
+Trying other mirror.
+Setting up Install Process
+Package ntp-4.2.6p5-1.el6.centos.x86_64 already installed and latest version
+Nothing to do
+ 9 Jun 16:09:29 ntpdate[4134]: adjust time server 202.112.31.197 offset -0.000095 sec
+Stopping crond: [  OK  ]
+Starting crond: [  OK  ]
+
+host:    192.168.1.151
+command: rm -f /tmp/tmp.WtTeenHIvr
+output:  
+
+host:    192.168.1.152
+command: sh /tmp/tmp.7Dbsm6JikN
+output:  Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+Setting up Install Process
+Package ntp-4.2.6p5-1.el6.centos.x86_64 already installed and latest version
+Nothing to do
+ 9 Jun 16:09:50 ntpdate[7444]: adjust time server 202.112.29.82 offset 0.006764 sec
+Stopping crond: [  OK  ]
+Starting crond: [  OK  ]
+
+host:    192.168.1.152
+command: rm -f /tmp/tmp.7Dbsm6JikN
+output:  
+
+host:    192.168.1.153
+command: sh /tmp/tmp.KiKobYe4My
+output:  Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+Setting up Install Process
+Package ntp-4.2.6p5-1.el6.centos.x86_64 already installed and latest version
+Nothing to do
+ 9 Jun 16:10:09 ntpdate[7002]: adjust time server 202.112.29.82 offset 0.007467 sec
+Stopping crond: [  OK  ]
+Starting crond: [  OK  ]
+
+host:    192.168.1.153
+command: rm -f /tmp/tmp.KiKobYe4My
+output:  
+

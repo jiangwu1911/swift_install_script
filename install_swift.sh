@@ -51,6 +51,16 @@ function enable_password_less_ssh() {
 }
 
 
+function disable_selinux() {
+    echo -e "\nDisable SELinux... \c"
+    for node in $PROXY_NODE $STORAGE_NODE; do
+        script="sed -i -e 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
+setenforce Permissive"
+        output=$(exec_script $node "$script")
+    done
+    echo "done."
+}
+
 function disable_firewall() {
     echo -e "\nDisable firewall... \c"
     for node in $PROXY_NODE $STORAGE_NODE; do
@@ -68,7 +78,9 @@ function install_ntp() {
         echo -e "    Installing ntp on $node... \c"
         script="yum install -y ntp
 ntpdate 0.cn.pool.ntp.org
-sed -i -s 's#^.*ntpdate.*#*/30 * * * * root /usr/sbin/ntpdate 0.cn.pool.ntp.org#' /etc/crontab
+touch  /var/spool/cron/root
+echo '*/30 * * * *  /usr/sbin/ntpdate 0.cn.pool.ntp.org >/dev/null 2>&1' > /var/spool/cron/root
+crontab -u root /var/spool/cron/root
 chkconfig crond on
 service crond restart"
         output=$(exec_script $node "$script")
@@ -363,6 +375,7 @@ init_log
 enable_password_less_ssh
 check_connection
 
+disable_selinux
 disable_firewall
 install_ntp
 create_device
