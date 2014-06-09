@@ -48,7 +48,7 @@ result: $output\n" >> $log_file
 
 function enable_password_less_ssh() {
     for node in $ALL_NODES; do
-        ssh-copy-id $node
+        ssh-copy-id $node >/dev/null 2>&1
     done
 }
 
@@ -144,11 +144,11 @@ chown -R swift:swift /srv/node"
 }
 
 function install_swift() {
-    echo -e "\nInstalling packages on proxy node:"
+    echo -e "\nInstalling swift packages on proxy node:"
     
     install_swift_on_proxy_node $PROXY_NODE
     
-    echo -e "\nInstalling packages on storage node:"
+    echo -e "\nInstalling swift packages on storage node:"
     for node in $STORAGE_NODES; do
         install_swift_on_storage_node $node
     done
@@ -186,7 +186,7 @@ service mysqld restart
 
 function install_keystone_packages() {
     node=$1
-    echo -e "\n Installing keystone on $node... \c"
+    echo -e "\n Installing keystone packages on $node... \c"
     script="yum install -y openstack-keystone
 sed -i -s 's#.*connection.*=.*mysql.*#connection = mysql://keystone:keystone@127.0.0.1/keystone#' /etc/keystone/keystone.conf
 sed -i -s 's/#driver=keystone.identity.backends.sql.Identity/driver=keystone.identity.backends.sql.Identity/' /etc/keystone/keystone.conf
@@ -224,7 +224,7 @@ function check_connection() {
     fail_count=0
     echo -e "\nCheck network connection on each node:"
     for node in $ALL_NODES; do
-        echo -e "    To $node... \c"
+        echo -e "    Checking $node... \c"
         output=$(exec_cmd $node "ping -c 1 baidu.com | grep '1 received' | wc -l")
         if [ "$output" = "1" ]; then
             echo "success."
@@ -447,22 +447,22 @@ function init_log() {
 init_log
 
 # Check environment
-#enable_password_less_ssh
-#check_connection
+enable_password_less_ssh
+check_connection
 
 # Prepare to install
-#disable_selinux
-#disable_firewall
-#install_ntp
-#create_device
+disable_selinux
+disable_firewall
+install_ntp
+create_device
 
 # Install and config
 install_keystone
-#install_swift
-#config
+install_swift
+config
 
 # Start service
-#create_rings
-#start_service
+create_rings
+start_service
 
 echo
