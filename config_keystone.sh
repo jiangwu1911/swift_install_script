@@ -49,14 +49,14 @@ KEYSTONESERVICE_ROLE=$(get_id keystone role-create --name=KeystoneServiceAdmin)
 SYSADMIN_ROLE=$(get_id keystone role-create --name=sysadmin)  
   
 # Add Roles to Users in Tenants  
-keystone user-role-add --user $ADMIN_USER --role $ADMIN_ROLE --tenant_id $ADMIN_TENANT  
-keystone user-role-add --user $DEMO_USER --role $MEMBER_ROLE --tenant_id $DEMO_TENANT  
-keystone user-role-add --user $DEMO_USER --role $SYSADMIN_ROLE --tenant_id $DEMO_TENANT  
-keystone user-role-add --user $ADMIN_USER --role $ADMIN_ROLE --tenant_id $DEMO_TENANT  
+keystone user-role-add --user-id $ADMIN_USER --role-id $ADMIN_ROLE --tenant-id $ADMIN_TENANT  
+keystone user-role-add --user-id $DEMO_USER --role-id $MEMBER_ROLE --tenant-id $DEMO_TENANT  
+keystone user-role-add --user-id $DEMO_USER --role-id $SYSADMIN_ROLE --tenant-id $DEMO_TENANT  
+keystone user-role-add --user-id $ADMIN_USER --role-id $ADMIN_ROLE --tenant-id $DEMO_TENANT  
   
 # TODO(termie): these two might be dubious  
-keystone user-role-add --user $ADMIN_USER --role $KEYSTONEADMIN_ROLE --tenant_id $ADMIN_TENANT  
-keystone user-role-add --user $ADMIN_USER --role $KEYSTONESERVICE_ROLE --tenant_id $ADMIN_TENANT  
+keystone user-role-add --user-id $ADMIN_USER --role-id $KEYSTONEADMIN_ROLE --tenant-id $ADMIN_TENANT  
+keystone user-role-add --user-id $ADMIN_USER --role-id $KEYSTONESERVICE_ROLE --tenant-id $ADMIN_TENANT  
   
   
 # Services  
@@ -79,9 +79,9 @@ if [[ -n "$ENABLE_SWIFT" ]]; then
                                              --pass="$SERVICE_PASSWORD" \
                                              --tenant_id $SERVICE_TENANT \
                                              --email=swift@example.com)  
-    keystone user-role-add --tenant_id $SERVICE_TENANT \
-                           --user $SWIFT_USER \
-			   --role $ADMIN_ROLE  
+    keystone user-role-add --tenant-id $SERVICE_TENANT \
+                           --user-id $SWIFT_USER \
+			               --role-id $ADMIN_ROLE  
     keystone endpoint-create --region RegionOne --service_id $SWIFT_SERVICE \
         --publicurl "http://${SWIFT_HOST_IP}:8080/v1/AUTH_\$(tenant_id)s" \
         --adminurl "http://${SWIFT_HOST_IP}:8080/" \

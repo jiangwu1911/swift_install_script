@@ -54,7 +54,7 @@ function enable_password_less_ssh() {
 
 
 function disable_selinux() {
-    echo -e "\nDisable SELinux... \c"
+    echo -e "\nDisable SELinux on each node... \c"
     for node in $ALL_NODES; do
         script="sed -i -e 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
 setenforce Permissive"
@@ -64,7 +64,7 @@ setenforce Permissive"
 }
 
 function disable_firewall() {
-    echo -e "\nDisable firewall... \c"
+    echo -e "\nDisable firewall on each node... \c"
     for node in $ALL_NODES; do
         script="service iptables stop
 chkconfig iptables off"
@@ -186,19 +186,26 @@ service mysqld restart
 
 function install_keystone_packages() {
     node=$1
-    echo -e "\n Installing keystone packages on $node... \c"
-    script="yum install -y openstack-keystone
-sed -i -s 's#.*connection.*=.*mysql.*#connection = mysql://keystone:keystone@127.0.0.1/keystone#' /etc/keystone/keystone.conf
-sed -i -s 's/#driver=keystone.identity.backends.sql.Identity/driver=keystone.identity.backends.sql.Identity/' /etc/keystone/keystone.conf
-sed -i -s 's/#driver=keystone.catalog.backends.sql.Catalog/driver=keystone.catalog.backends.sql.Catalog/' /etc/keystone/keystone.conf
-sed -i -s 's/#admin_token=ADMIN/admin_token=ADMIN/' /etc/keystone/keystone.conf
-sed -i -s 's/#admin_port=35357/admin_port=35357/' /etc/keystone/keystone.conf
-sed -i -s 's/.*token_format.*/token_format=UUID/' /etc/keystone/keystone.conf
+    echo -e "\nInstalling keystone packages on $node... \c"
+    script="yum install -y openstack-keystone openstack-utils
+openstack-config --set /etc/keystone/keystone.conf \
+    database connection mysql://keystone:keystone@$node/keystone
 
-service openstack-keystone restart
+keystone-manage db_sync
+
+ADMIN_TOKEN=\$(openssl rand -hex 10)
+echo \$ADMIN_TOKEN
+openstack-config --set /etc/keystone/keystone.conf DEFAULT \
+    admin_token \$ADMIN_TOKEN
+
+keystone-manage pki_setup
+chown -R keystone:keystone /etc/keystone/ssl
+chmod -R o-rwx /etc/keystone/ssl
+
+service openstack-keystone start
 chkconfig openstack-keystone on
+"
 
-keystone-manage db_sync"
     output=$(exec_script $node "$script")
     echo "done"
 }
@@ -458,11 +465,11 @@ create_device
 
 # Install and config
 install_keystone
-install_swift
-config
+#install_swift
+#config
 
 # Start service
-create_rings
-start_service
+#create_rings
+#start_service
 
 echo
