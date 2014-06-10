@@ -217,8 +217,8 @@ function config_keystone() {
     scp config_keystone.sh root@$node:/tmp >/dev/null 2>&1 
     output=$(exec_cmd $node "sh /tmp/config_keystone.sh $PROXY_NODE 2>&1")
     
-    exec_cmd $node "rm -f /tmp/config_keystone.sh >/dev/null 2>&1"
     echo "done."
+    exec_cmd $node "rm -f /tmp/config_keystone.sh >/dev/null 2>&1"
     echo $output 
 }
 
@@ -271,7 +271,10 @@ EOF
 
 function config_proxy_conf() {
     echo -e "\nConfig /etc/swift/proxy-server.conf on $PROXY_NODE... \c"
-    script="cat >/etc/swift/proxy-server.conf <<EOF
+    script="mkdir -p /home/swift/keystone-signing
+chown -R swift:swift /home/swift/keystone-signing
+
+cat >/etc/swift/proxy-server.conf <<EOF
 [DEFAULT]
 bind_port = 8080
 workers = 8
@@ -292,13 +295,10 @@ operator_roles = Member,admin,swiftoperator
 [filter:healthcheck]
 use = egg:swift#healthcheck
 
-[filter:keystoneauth]
-use = egg:swift#keystoneauth
-operator_roles = Member,admin,swiftoperator
-
 [filter:authtoken]
 paste.filter_factory = keystone.middleware.auth_token:filter_factory
 delay_auth_decision = true
+signing_dir = /home/swift/keystone-signing
 auth_protocol = http
 auth_host = ${PROXY_NODE}
 auth_port = 35357
