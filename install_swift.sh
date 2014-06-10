@@ -120,13 +120,28 @@ function create_device() {
 }
 
 
+function add_openstack_repo() {
+    echo -e "\nAdd OpenStack yum repos... \c"
+    for node in $ALL_NODES; do
+        script="cat >/etc/yum.repos.d/openstack.repo <<EOF
+[openstack-icehouse]
+name=OpenStack Icehouse Repository
+baseurl=http://192.168.1.124/openstack-icehouse/epel-6/
+enabled=1
+gpgcheck=0
+EOF"
+        output=$(exec_script $node "$script")
+    done
+    echo "done."
+}
+
+
 function install_swift_on_proxy_node() {
     node=$1
     echo -e "    Installing packages on $node... \c"
 
     pkgs="openstack-swift openstack-swift-proxy"
-    script="yum install -y http://rdo.fedorapeople.org/rdo-release.rpm
-yum install -y $pkgs"
+    script="yum install -y $pkgs"
     output=$(exec_script $node "$script")
     echo "done."
 }
@@ -136,8 +151,7 @@ function install_swift_on_storage_node() {
     echo -e "    Installing packages on $node... \c"
 
     pkgs="openstack-swift-account openstack-swift-object openstack-swift-container"
-    script="yum install -y http://rdo.fedorapeople.org/rdo-release.rpm
-yum install -y $pkgs
+    script="yum install -y $pkgs
 chown -R swift:swift /srv/node"
     output=$(exec_script $node "$script")
     echo "done."
@@ -145,7 +159,6 @@ chown -R swift:swift /srv/node"
 
 function install_swift() {
     echo -e "\nInstalling swift packages on proxy node:"
-    
     install_swift_on_proxy_node $PROXY_NODE
     
     echo -e "\nInstalling swift packages on storage node:"
@@ -198,9 +211,10 @@ echo \$ADMIN_TOKEN
 openstack-config --set /etc/keystone/keystone.conf DEFAULT \
     admin_token \$ADMIN_TOKEN
 
-keystone-manage pki_setup
+keystone-manage pki_setup --keystone-user=keystone --keystone-group=keystone
 chown -R keystone:keystone /etc/keystone/ssl
 chmod -R o-rwx /etc/keystone/ssl
+chown -R keystone:keystone /var/log/keystone
 
 service openstack-keystone start
 chkconfig openstack-keystone on
@@ -215,10 +229,10 @@ function config_keystone() {
     node=$1
     echo -e "\nConfig keystone on $node... \c"
     scp config_keystone.sh root@$node:/tmp >/dev/null 2>&1 
-    output=$(exec_cmd $node "sh /tmp/config_keystone.sh $PROXY_NODE 2>&1")
+    output=$(exec_cmd $node "sh /tmp/config_keystone.sh $PROXY_NODE >/dev/null 2>&1")
     
     echo "done."
-    exec_cmd $node "rm -f /tmp/config_keystone.sh >/dev/null 2>&1"
+    $(exec_cmd $node "rm -f /tmp/config_keystone.sh >/dev/null 2>&1")
     echo $output 
 }
 
@@ -234,7 +248,7 @@ function check_connection() {
     echo -e "\nCheck network connection on each node:"
     for node in $ALL_NODES; do
         echo -e "    Checking $node... \c"
-        output=$(exec_cmd $node "ping -c 1 yum.puppetlabs.com | grep '1 received' | wc -l")
+        output=$(exec_cmd $node "ping -c 1 mirrors.sohu.com | grep '1 received' | wc -l")
         if [ "$output" = "1" ]; then
             echo "success."
         else 
@@ -254,7 +268,7 @@ function config_swift_conf() {
     echo -e "\nConfigure /etc/swift/swift.conf on each node:"
 
     tmpfile=$(mktemp)
-    cat >$tmpfile << EOF
+    cat >$tmpfile <<EOF
 [swift-hash]
 # random unique strings that can never change (DO NOT LOSE)
 swift_hash_path_prefix = `od -t x8 -N 8 -A n </dev/urandom`
@@ -466,6 +480,7 @@ install_ntp
 create_device
 
 # Install and config
+add_openstack_repo
 install_keystone
 install_swift
 config
