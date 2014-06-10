@@ -310,7 +310,7 @@ operator_roles = Member,admin,swiftoperator
 use = egg:swift#healthcheck
 
 [filter:authtoken]
-paste.filter_factory = keystone.middleware.auth_token:filter_factory
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
 delay_auth_decision = true
 signing_dir = /home/swift/keystone-signing
 auth_protocol = http
