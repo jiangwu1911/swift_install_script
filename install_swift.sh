@@ -207,7 +207,7 @@ chkconfig openstack-keystone on
 "
 
     output=$(exec_script $node "$script")
-    echo "done"
+    echo "done."
 }
 
 function config_keystone() {
@@ -216,7 +216,8 @@ function config_keystone() {
     scp config_keystone.sh root@$node:/tmp >/dev/null 2>&1 
     output=$(exec_cmd $node "sh /tmp/config_keystone.sh $PROXY_NODE 2>&1")
     
-    exec_cmd $node "rm -f  /tmp/config_keystone.sh"
+    exec_cmd $node "rm -f /tmp/config_keystone.sh >/dev/null 2>&1"
+    echo "done."
     echo $output 
 }
 
@@ -465,11 +466,11 @@ create_device
 
 # Install and config
 install_keystone
-#install_swift
-#config
+install_swift
+config
 
 # Start service
-#create_rings
-#start_service
+create_rings
+start_service
 
 echo

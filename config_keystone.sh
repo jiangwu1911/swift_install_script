@@ -4,6 +4,7 @@ ADMIN_PASSWORD=admin
 ENABLE_SWIFT=1  
 ENABLE_ENDPOINTS=1  
 SWIFT_HOST_IP=$1
+KEYSTONE_HOST_IP=$1
   
 KEYSTONE_CONF=${KEYSTONE_CONF:-/etc/keystone/keystone.conf}  
 SERVICE_PASSWORD=${SERVICE_PASSWORD:-$ADMIN_PASSWORD}  
@@ -66,9 +67,9 @@ keystone service-create --name=keystone \
                         --description="Keystone Identity Service")  
 if [[ -n "$ENABLE_ENDPOINTS" ]]; then  
     keystone endpoint-create --region RegionOne --service_id $KEYSTONE_SERVICE \
-        --publicurl 'http://localhost:$(public_port)s/v2.0' \
-        --adminurl 'http://localhost:$(admin_port)s/v2.0' \
-        --internalurl 'http://localhost:$(admin_port)s/v2.0'
+        --publicurl "http://${KEYSTONE_HOST_IP}:\$(public_port)s/v2.0" \
+        --adminurl "http://${KEYSTONE_HOST_IP}:\$(admin_port)s/v2.0" \
+        --internalurl "http://${KEYSTONE_HOST_IP}:\$(admin_port)s/v2.0"
 fi  
   
 if [[ -n "$ENABLE_SWIFT" ]]; then  
