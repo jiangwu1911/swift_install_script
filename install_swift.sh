@@ -204,6 +204,7 @@ chmod -R o-rwx /etc/keystone/ssl
 
 service openstack-keystone start
 chkconfig openstack-keystone on
+sleep 10
 "
 
     output=$(exec_script $node "$script")
@@ -296,10 +297,10 @@ use = egg:swift#keystoneauth
 operator_roles = Member,admin,swiftoperator
 
 [filter:authtoken]
-paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+paste.filter_factory = keystone.middleware.auth_token:filter_factory
 delay_auth_decision = true
 auth_protocol = http
-auth_host = controller
+auth_host = ${PROXY_NODE}
 auth_port = 35357
 admin_tenant_name = service
 admin_user = swift
