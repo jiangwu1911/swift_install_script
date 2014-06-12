@@ -1,0 +1,7 @@
+TODO list
+---------------------------------
+1. Install horizon.
+2. Support multi storage device on storage node.
+3. Script to add an new storage node.
+4. Script to add an new proxy node.
+5. Script to add new users.
